@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://github.com/gmherond/Cosmos
-// @version      0.9
+// @version      1.0
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -10,6 +10,13 @@
 // @downloadURL  https://github.com/gmherond/Cosmos/raw/refs/heads/main/CosmosScript.user.js
 // @updateURL    https://github.com/gmherond/Cosmos/raw/refs/heads/main/CosmosScript.user.js
 // ==/UserScript==
+
+//to do:
+//order by
+//add option for user to change the time range
+//replace cookie checker code with actual html parser
+//comment code(eugh)
+//clean code?
 
 let style= `
 
@@ -93,6 +100,7 @@ body{
     margin-top:1rem;
     min-height:9rem;
     z-index:2;
+    transition:0.8s height ease-in-out;
 }
 
 #cosmos-summary-values, .cosmos-job-values{
@@ -112,6 +120,14 @@ body{
     width: 12rem;
     font-size: 1.75rem;
     margin-top: 1rem;
+}
+
+.cosmos-job:hover > .cosmos-job-expanded{
+    display:block;
+}
+
+.cosmos-job-expanded{
+    display:none;
 }
 
 .cosmos-job-title{
@@ -178,6 +194,11 @@ body{
     border: 2px solid #ffffffaa;
     background-color: #2f0080;
     cursor:pointer;
+    transition: 0.3s background-color ease-in-out;
+}
+
+.cosmos-sidebar-button:hover{
+    background-color:#470fa6;
 }
 
 .cosmos-sidebar-details, .cosmos-sidebar-container{
@@ -268,8 +289,8 @@ body{
     position:fixed;
     right:49%;
     bottom:10%;
-    width:2rem;
-    height:2rem;
+    width:3rem;
+    height:3rem;
 }
 
 #cosmos-blood-moon{
@@ -299,6 +320,11 @@ body{
     height:3rem;
     padding:0.45rem;
     cursor:pointer;
+    transition:background-color 0.3s ease-in-out;
+}
+
+#cosmos-sort-button:hover{
+    background-color:#470fa6;
 }
 
 #cosmos-sort-button > svg{
@@ -516,8 +542,18 @@ function initFunction(){
         document.getElementById("cosmos-update-login").addEventListener("click",()=>{
             let newLogin = document.getElementById("cosmos-sidebar-login").value;
             localStorage.setItem("login",newLogin);
-            userUUID = JSON.parse(localStorage.getItem("uuidList")).find((u)=>u.login==newLogin);
-            console.log(userUUID);
+            userUUID = JSON.parse(localStorage.getItem("uuidList")).find((u)=>u.login==newLogin).UUID;
+            document.getElementById("cosmos-sidebar-workerId").value = userUUID;
+            displayDashboard();
+        });
+
+        document.getElementById("cosmos-update-workerId").addEventListener("click",()=>{
+            let newUUID = document.getElementById("cosmos-sidebar-workerId").value;
+            let uuidList = JSON.parse(localStorage.getItem("uuidList"));
+            uuidList.find((u)=>u.login==localStorage.getItem("login")).UUID=newUUID;
+            localStorage.setItem("uuidList",JSON.stringify(uuidList));
+            userUUID = newUUID;
+            displayDashboard();
         });
 
         document.getElementById("cosmos-order-by-select").addEventListener("change",()=>{
@@ -525,6 +561,7 @@ function initFunction(){
             getData();
         });
         clearInterval(initInterval);
+        fetchWorkerIds();
     }
 }
 
@@ -708,7 +745,7 @@ function displayLabelingJobs(labelingJobs){
                 </div>
                 <div class="cosmos-job-expanded">
                     <div class="cosmos-job-expanded-section">
-
+                        ${displayJobTimeframe(labelingJob.timePoints)}
                     </div>
                 </div>
             </div>\n
@@ -720,9 +757,35 @@ function displayLabelingJobs(labelingJobs){
 }
 
 function displayJobTimeframe(timePoints){
+    let endIndex = -1;
+    let startIndex = -1;
+    for(let i=0;i<timePoints.length;i++){
+        let timePoint = timePoints[i];
+        if(timePoint!="null"){
+            if(endIndex==-1){
+                endIndex = i;
+                startIndex = i;
+            }
+            else{
+                startIndex = i;
+            }
+        }
+    }
 
+    return `Start Time: ${UTCTimeToLocal(timePointLabels[startIndex])} Last Time: ${UTCTimeToLocal(timePointLabels[endIndex])}`;
+}
 
-    return "";
+function UTCTimeToLocal(dateTime){
+    let newDate = new Date();
+    let date = dateTime.date.split("/");
+    newDate.setUTCMonth(Number(date[0])-1);
+    newDate.setUTCDate(Number(date[1]));
+    let time = dateTime.time.split(":");
+    newDate.setUTCHours(Number(time[0]));
+    newDate.setUTCMinutes(Number(time[1])-5);
+    newDate.setUTCSeconds(0);
+
+    return newDate.toTimeString().substring(0,5);
 }
 
 function displayTotal(){
@@ -835,32 +898,28 @@ function fetchWorkerIds(){
         let uuidList = JSON.parse(result);
         if(localStorage.getItem("uuidList")){
             let oldUUIDList = JSON.parse(localStorage.getItem("uuidList"));
-            let newList = [];
-            for(let i = 0; i<oldUUIDList.length;i++){
-                let user = oldUUIDList[i];
-                let compareUser = uuidList.find((u)=>u.login==user.login);
-                if(compareUser!=null){
-                    newList.push(user);
-
+            for(let i = 0; i<uuidList.length;i++){
+                let user = uuidList[i];
+                let compareUser = oldUUIDList.findIndex((u)=>u.login==user.login);
+                if(compareUser>=0){
+                    let splicedUser = oldUUIDList.splice(compareUser,1);
+                    user.UUID = splicedUser[0].UUID;
                 }
             }
-            localStorage.setItem("uuidList",JSON.stringify(newList));
+            uuidList = uuidList.concat(oldUUIDList);
         }
-        else {
-            localStorage.setItem("uuidList",JSON.stringify(uuidList));
-        }
+        localStorage.setItem("uuidList",JSON.stringify(uuidList));
 
     }).catch((error) => console.error(error));
 }
 
-function getCurrentFullDate(){
-    let currentDate = new Date();
-    let year = currentDate.getFullYear();
-    let month = currentDate.getMonth()+1;
+function getFullDate(date){
+    let year = date.getFullYear();
+    let month = date.getMonth()+1;
     if(month.toString().length==1){
         month="0"+month;
     }
-    let day = currentDate.getDate();
+    let day = date.getDate();
     if(day.toString().length==1){
         day="0"+day;
     }
@@ -869,7 +928,7 @@ function getCurrentFullDate(){
 }
 
 function displayDashboard(){
-
+    let hours = 20;
     CloudWatchDashboards.displayCustomDashboard({
         "widgets": [
             {
@@ -889,7 +948,7 @@ function displayDashboard(){
                     "period": 3600,
                     "title": "Average Handle Time",
                     "setPeriodToTimeRange": true,
-                    "start": "-PT12H",
+                    "start": `-PT${hours}H`,
                     "end": "P0D"
                 }
             },
@@ -910,7 +969,7 @@ function displayDashboard(){
                     "title": "Submitted Tasks",
                     "period": 3600,
                     "setPeriodToTimeRange": true,
-                    "start": "-PT12H",
+                    "start": `-PT${hours}H`,
                     "end": "P0D"
                 }
             },
@@ -932,7 +991,7 @@ function displayDashboard(){
                     "period": 300,
                     "title": "Total Time",
                     "setPeriodToTimeRange": true,
-                    "start": "-PT12H",
+                    "start": `-PT${hours}H`,
                     "end": "P0D"
                 }
             }
@@ -985,7 +1044,7 @@ function declareHTML(){
             <button id="cosmos-update-login" class="cosmos-sidebar-button">Update Login</button>
             <label>Cloudwatch WorkerId:</label>
             <input id="cosmos-sidebar-workerId" value="${JSON.parse(localStorage.getItem("uuidList")).find((u)=>u.login==localStorage.getItem("login")).UUID}" placeholder="550e8400-e29b-41d4-a716-446655440000">
-            <button id="cosmos-update-workerId" class="cosmos-sidebar-button">Update WorkerId</button>
+            <button id="cosmos-update-workerId" class="cosmos-sidebar-button">Overwrite WorkerId</button>
             </div>
         </details>
     </div>
