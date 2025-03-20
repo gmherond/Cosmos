@@ -928,7 +928,7 @@ function getFullDate(date){
 }
 
 function displayDashboard(){
-    let hours = 20;
+    let hours = 12;
     CloudWatchDashboards.displayCustomDashboard({
         "widgets": [
             {
