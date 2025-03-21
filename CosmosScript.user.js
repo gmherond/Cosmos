@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://github.com/gmherond/Cosmos
-// @version      1.0
+// @version      1.0.1
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -10,6 +10,15 @@
 // @downloadURL  https://github.com/gmherond/Cosmos/raw/refs/heads/main/CosmosScript.user.js
 // @updateURL    https://github.com/gmherond/Cosmos/raw/refs/heads/main/CosmosScript.user.js
 // ==/UserScript==
+
+/*
+-----------------------------------------------------------------------------------------------------------------------
+Changelog 1.0.1 03/21/2025
+-Fixed an error where the UI would freeze if an uuidList was generated before the login in localStorage.
+-Added a loading icon so that the user can know if the dashboard is currently loading.
+-The interval that checks whether there are dashboards loading also made the display of information way faster as a side effect.
+-----------------------------------------------------------------------------------------------------------------------
+*/
 
 //to do:
 //order by
@@ -302,7 +311,7 @@ body{
 }
 
 .hidden{
-    display:none;
+    display:none !important;
 }
 
 .flex-center{
@@ -335,6 +344,62 @@ body{
     transform: scaleY(-1);
 }
 
+#cosmos-loading-message{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+    position:fixed;
+    bottom:50%;
+    top:50%;
+}
+
+@-webkit-keyframes rotating /* Safari and Chrome */ {
+  from {
+    -webkit-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+@keyframes rotating {
+  from {
+    -ms-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -webkit-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -ms-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+#cosmos-loading-icon {
+    width:20rem;
+    height:20rem;
+
+    -webkit-animation: rotating 3s linear infinite;
+    -moz-animation: rotating 3s linear infinite;
+    -ms-animation: rotating 3s linear infinite;
+    -o-animation: rotating 3s linear infinite;
+    animation: rotating 3s linear infinite;
+}
+
+#cosmos-loading-text{
+    margin-top:1rem;
+    font-size:1.75rem;
+    width:30rem;
+    text-align:center;
+}
+
 `;
 
 let favicon = `
@@ -363,6 +428,8 @@ let loading = false;
 let checkChartsInterval;
 let getDataInterval;
 let canvasInterval;
+let loadingCheckInterval;
+let startedLoading=false;
 
 let canvas;
 let context;
@@ -446,7 +513,6 @@ function cosmosInit(){
     });
 
     checkChartsInterval = setInterval(checkCharts,1);
-    getDataInterval = setInterval(getData,10000);
 
     if(localStorage.getItem("isDescending")==null){
         localStorage.setItem("isDescending","true");
@@ -476,10 +542,12 @@ function cosmosInit(){
         userUUID = JSON.parse(localStorage.getItem("uuidList")).find((u)=>u.login==login);
         if(!userUUID){
             showNoUUID_UI(login);
-
         }
         else{
             userUUID = userUUID.UUID;
+            if(!localStorage.getItem("login")){
+                localStorage.setItem("login",login);
+            }
         }
         declareHTML();
         displayDashboard();
@@ -517,6 +585,7 @@ function initFunction(){
         CosmosContainer.innerHTML = CosmosUIHTML;
         CosmosContainer.id="cosmos-container";
         document.body.append(CosmosContainer);
+        getDataInterval = setInterval(getData,10000);
         canvas = document.getElementById("cosmos-canvas");
         context = canvas.getContext("2d");
         context.canvas.width = window.innerWidth;
@@ -616,7 +685,6 @@ function getData(){
     if(Array.from(document.getElementsByClassName("cwdb-single-value-section")).filter((e)=>e.innerText.includes("AHT ")).length>0){
 
         let AHTElements = Array.from(document.getElementsByClassName("cwdb-single-value-section")).filter((e)=>e.innerText.includes("AHT "));
-        //Array.from(document.getElementsByClassName("cwdb-single-value-section"))[9].innerText
 
         averageHandleTimeList = AHTElements.map((e)=>{
             let splitValues = e.innerText.split("\n");
@@ -750,8 +818,6 @@ function displayLabelingJobs(labelingJobs){
                 </div>
             </div>\n
         `;
-
-
     }
     document.getElementById("cosmos-batches").innerHTML = batches;
 }
@@ -775,7 +841,7 @@ function displayJobTimeframe(timePoints){
     return `Start Time: ${UTCTimeToLocal(timePointLabels[startIndex])} Last Time: ${UTCTimeToLocal(timePointLabels[endIndex])}`;
 }
 
-function UTCTimeToLocal(dateTime){
+function UTCTimeToLocal(dateTime){//Takes date "01/01" and time "12:00" values which are by default using a UTC timezone to create a Date object and retrieve the local timezone equivalent.
     let newDate = new Date();
     let date = dateTime.date.split("/");
     newDate.setUTCMonth(Number(date[0])-1);
@@ -788,7 +854,7 @@ function UTCTimeToLocal(dateTime){
     return newDate.toTimeString().substring(0,5);
 }
 
-function displayTotal(){
+function displayTotal(){//Updates the values for the summary at the top. Specifically, the values of all bandwidths and all throughputs.
     let globalTimeSpent = 0;
     let globalBandwidth = 0;
 
@@ -810,7 +876,7 @@ function displayTotal(){
     document.getElementById("cosmos-summary-processed-tasks").innerText = globalBandwidth;
 }
 
-function formatTime(time){
+function formatTime(time){//Takes a time value in seconds and returns its equivalent either in seconds "10s", minutes "10min" or hours "3h".
     if(!time){
         return "--";
     }
@@ -831,13 +897,12 @@ function formatTime(time){
     return displayTime;
 }
 
-function draw() {
-    //context.clearRect(0, 0, canvas.width, canvas.height);
+function draw() {//Draws the starred sky for the canvas element in the background.
     drawBackground();
     drawStars();
 }
 
-function drawBackground() {
+function drawBackground() {//Generates a gradient for the background
     let gradient = context.createLinearGradient(0, window.innerHeight * 0.1, window.innerWidth, window.innerWidth * 0.9);
     gradient.addColorStop(0, "rgba(9,8,23,1)");
     gradient.addColorStop(0.32, "rgba(22,3,45,1)");
@@ -848,7 +913,7 @@ function drawBackground() {
     context.fillRect(0, 0, window.innerWidth, window.innerHeight);
 }
 
-function createStars(){
+function createStars(){//Generates the position(x,y), size, opacity and the rate which the opacity changes over time of all stars for the background.
     stars = [];
     let starAmount = 1000;
     starAmount = Math.floor(window.innerWidth*window.innerHeight/2000);
@@ -864,7 +929,7 @@ function createStars(){
     }
 }
 
-function drawStars() {
+function drawStars() {//Shows the hidden drawings for the background so that both the stars and the drawings are shown simultaneously. Stars are drawn on to the canvas for the background from the previously generated star list.
     if(document.getElementById("cosmos-cosmic-eye").className=="hidden"){
         document.getElementById("cosmos-cosmic-eye").className = "";
         document.getElementById("cosmos-pisces-constellation").className = "";
@@ -891,7 +956,7 @@ function drawStars() {
     }
 }
 
-function fetchWorkerIds(){
+function fetchWorkerIds(){//Attempts to retrieve the list of existing WorkerIds and merges it with the user's existing UUID List in their localStorage.
     fetch("https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/workerTable.json")
         .then((response) => response.text())
         .then((result) => {
@@ -913,7 +978,7 @@ function fetchWorkerIds(){
     }).catch((error) => console.error(error));
 }
 
-function getFullDate(date){
+function getFullDate(date){//Returns a YYYY-MM-DD format of the date object given.
     let year = date.getFullYear();
     let month = date.getMonth()+1;
     if(month.toString().length==1){
@@ -927,7 +992,28 @@ function getFullDate(date){
     return formattedDate;
 }
 
-function displayDashboard(){
+function checkLoading(){
+    let loaders = document.getElementsByClassName("cwdb-loader");
+    if(loaders){
+        if(loaders.length>0){
+            if(!startedLoading){
+                document.getElementById("cosmos-loading-message").className="";
+            }
+            startedLoading=true;
+        }
+        else{
+            if(startedLoading){
+                getData();
+                document.getElementById("cosmos-loading-message").className="hidden";
+                clearInterval(loadingCheckInterval);
+                startedLoading=false;
+            }
+
+        }
+    }
+}
+
+function displayDashboard(){//Generates a custom dashboard that retrieves the total time spent, amount of processed tasks and average handle time of all dashboards for the WorkerId provided.
     let hours = 12;
     CloudWatchDashboards.displayCustomDashboard({
         "widgets": [
@@ -997,6 +1083,7 @@ function displayDashboard(){
             }
         ]
     });
+    loadingCheckInterval = setInterval(checkLoading,10);
 }
 
 function declareHTML(){
@@ -1011,6 +1098,12 @@ function declareHTML(){
 <img id="cosmos-sus-mogus-constellation" class="hidden" src="https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/Sus%20Mogus%20Constellation.svg"></img>
 <img id="cosmos-black-hole" class="hidden" src="https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/Black%20hole.svg"></img>
 <img id="cosmos-blood-moon" class="hidden" src="https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/Blood%20Moon.svg"></img>
+
+<div id="cosmos-loading-message">
+    <img id="cosmos-loading-icon" src="https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/Cosmos%20Loading%20Icon.svg"></img>
+    <span id="cosmos-loading-text">Cosmos is loading<br>Please keep this tab open while you see this message, thank you!✨</span>
+</div>
+
 <div id="cosmos-summary">
 
 <h2 id="cosmos-summary-title">Summary</h2>
@@ -1040,10 +1133,10 @@ function declareHTML(){
             <summary class="cosmos-sidebar-details-summary">User Information</summary>
             <div class="cosmos-sidebar-details-settings">
             <label>Login Username:</label>
-            <input id="cosmos-sidebar-login" value="${localStorage.getItem("login")}" placeholder="elgustav">
+            <input id="cosmos-sidebar-login" value="${localStorage.getItem("login")}" placeholder="johnsm">
             <button id="cosmos-update-login" class="cosmos-sidebar-button">Update Login</button>
             <label>Cloudwatch WorkerId:</label>
-            <input id="cosmos-sidebar-workerId" value="${JSON.parse(localStorage.getItem("uuidList")).find((u)=>u.login==localStorage.getItem("login")).UUID}" placeholder="550e8400-e29b-41d4-a716-446655440000">
+            <input id="cosmos-sidebar-workerId" value="${userUUID}" placeholder="550e8400-e29b-41d4-a716-446655440000">
             <button id="cosmos-update-workerId" class="cosmos-sidebar-button">Overwrite WorkerId</button>
             </div>
         </details>
