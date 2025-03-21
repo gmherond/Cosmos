@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://github.com/gmherond/Cosmos
-// @version      1.0.1
+// @version      1.0.2
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -848,7 +848,7 @@ function UTCTimeToLocal(dateTime){//Takes date "01/01" and time "12:00" values w
     newDate.setUTCDate(Number(date[1]));
     let time = dateTime.time.split(":");
     newDate.setUTCHours(Number(time[0]));
-    newDate.setUTCMinutes(Number(time[1])-5);
+    newDate.setUTCMinutes(Number(time[1]));
     newDate.setUTCSeconds(0);
 
     return newDate.toTimeString().substring(0,5);
