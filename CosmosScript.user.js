@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423
-// @version      1.2.0
+// @version      1.2.1
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -561,7 +561,7 @@ input.cosmos-category-input-title {
     height: 2.8rem;
     width: 2.8rem;
     position: absolute;
-    right: 9.3rem;
+    right: 9.2rem;
 	cursor:pointer;
 }
 
