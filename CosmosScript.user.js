@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423
-// @version      1.2.2
+// @version      1.2.3
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -1556,7 +1556,7 @@ function displayTotal(){//Updates the values for the summary at the top. Specifi
 		}
 	}
 
-	document.getElementById("cosmos-summary-total-time").innerText = formatTime(globalTimeSpent);
+	document.getElementById("cosmos-summary-total-time").innerText = formatBandwidth(globalTimeSpent);
 	document.getElementById("cosmos-summary-processed-tasks").innerText = globalBandwidth;
 }
 
