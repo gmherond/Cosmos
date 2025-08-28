@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423
-// @version      1.2.1
+// @version      1.2.2
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -13,6 +13,11 @@
 // ==/UserScript==
 
 /*
+-----------------------------------------------------------------------------------------------------------------------
+Changelog 1.2.2 08/28/2025
+-Added option to display time either in a decimal format or a standard HH:MM:SS format.
+-Bandwidth will always be displayed in hour units if decimal format is selected.
+-----------------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------------
 Changelog 1.2.0 04/08/2025
 -Added a Categories option in the settings section. This option lets you group batches that match the same filter words.
@@ -31,7 +36,6 @@ Changelog 1.0.1 03/21/2025
 */
 
 //to do:
-//Preferences Section
 //add option for user to change the time range
 
 let style= `
@@ -417,7 +421,6 @@ body{
 #cosmos-loading-icon {
     width:20rem;
     height:20rem;
-
     -webkit-animation: rotating 3s linear infinite;
     -moz-animation: rotating 3s linear infinite;
     -ms-animation: rotating 3s linear infinite;
@@ -675,6 +678,10 @@ input.cosmos-category-input-title {
 	height:1.5rem;
 	transform: scaleX(0.9);
 }
+
+.cosmos-time-format[selected="0"]{
+	background-color:gray;
+}
 `;
 
 let favicon = `
@@ -790,6 +797,10 @@ function cosmosInit(){
 
 	if(getItem("groups")==null){
 		setItem("groups",[]);
+	}
+
+	if(getItem("timeFormat")==null){
+		setItem("timeFormat",0);
 	}
 
 	let login;
@@ -909,6 +920,20 @@ function initFunction(){
 			setItem("uuidList",uuidList);
 			userUUID = newUUID;
 			displayDashboard();
+		});
+
+		document.getElementById("cosmos-decimal-time-button").addEventListener("click",()=>{
+			setItem("timeFormat",0);
+			document.getElementById("cosmos-decimal-time-button").setAttribute("selected",1);
+			document.getElementById("cosmos-standard-time-button").setAttribute("selected",0);
+			displayData();
+		});
+
+		document.getElementById("cosmos-standard-time-button").addEventListener("click",()=>{
+			setItem("timeFormat",1);
+			document.getElementById("cosmos-decimal-time-button").setAttribute("selected",0);
+			document.getElementById("cosmos-standard-time-button").setAttribute("selected",1);
+			displayData();
 		});
 
 		document.getElementById("cosmos-view-source").addEventListener("click",()=>{
@@ -1175,7 +1200,7 @@ function displayLabelingJobs(groups){
 					<div class="cosmos-job-values">
                     	<div class="cosmos-job-value">
                         	<label class="cosmos-job-label">Bandwidth</label>
-                        	<span class="cosmos-job-total-time">${formatTime(labelingJob.totalTime)}</span>
+                        	<span class="cosmos-job-total-time">${formatBandwidth(labelingJob.totalTime)}</span>
                     	</div>
                     	<div class="cosmos-job-value">
                     	    <label class="cosmos-job-label">Throughput</label>
@@ -1183,7 +1208,7 @@ function displayLabelingJobs(groups){
                     	</div>
 						<div class="cosmos-job-value">
                         	<label class="cosmos-job-label">AHT</label>
-                        	<span class="cosmos-job-average-handle-time">${formatTime(labelingJob.averageHandleTime)}</span>
+                        	<span class="cosmos-job-average-handle-time">${formatAHT(labelingJob.averageHandleTime)}</span>
                     	</div>
                 	</div>
                 	<div class="cosmos-job-expanded">
@@ -1206,7 +1231,7 @@ function displayLabelingJobs(groups){
 						<div class="cosmos-group-values">
                     		<div class="cosmos-job-value">
 								<label class="cosmos-job-label">Bandwidth</label>
-                        		<span class="cosmos-job-total-time">${formatTime(summary.totalTime)}</span>
+                        		<span class="cosmos-job-total-time">${formatBandwidth(summary.totalTime)}</span>
                     		</div>
                     		<div class="cosmos-job-value">
                     	    	<label class="cosmos-job-label">Throughput</label>
@@ -1214,7 +1239,7 @@ function displayLabelingJobs(groups){
                     		</div>
 							<div class="cosmos-job-value">
                         		<label class="cosmos-job-label">AHT</label>
-                        		<span class="cosmos-job-average-handle-time">${formatTime(summary.totalAHT)}</span>
+                        		<span class="cosmos-job-average-handle-time">${formatAHT(summary.totalAHT)}</span>
                     		</div>
 						</div>
 						<span class="cosmos-group-show-batches-label">${group.opened ? "Click to collapse" : "Click to expand"}</span>
@@ -1243,6 +1268,30 @@ function displayLabelingJobs(groups){
 	for(let i=0;i<groupElements.length;i++){
 		let index = groupElements[i].getAttribute("index");
 		groupElements[i].addEventListener("click",()=>{toggleGroupOpenedState(index)});
+	}
+}
+
+function formatBandwidth(time){
+	if(getItem("timeFormat")==0){
+		let decimalTime = time/3600;
+		return decimalTime.toFixed(2)+"h";
+	}
+	else if(getItem("timeFormat")==1){
+		return formatTimeHHMMSS(time);
+	}
+}
+
+function formatAHT(time){
+		if(getItem("timeFormat")==0){
+		return formatTime(time);
+	}
+	else if(getItem("timeFormat")==1){
+		if(time<3600){
+			return formatTimeMMSS(time);
+		}
+		else{
+			return formatTimeHHMMSS(time);
+		}
 	}
 }
 
@@ -1536,6 +1585,39 @@ function formatTimeHours(time){
 	return `${(time/3600).toFixed(2)}h`;
 }
 
+function formatTimeMMSS(time){
+	time = Math.round(time);
+	let minutes=0;
+	let seconds=0;
+	seconds = time%60;
+	if(time>=60){
+		minutes = (time-(time%60))/60;
+	}
+	return `${timeStringFormat(minutes%60)}:${timeStringFormat(seconds)}`;
+}
+
+function formatTimeHHMMSS(time){
+	time = Math.round(time);
+	let hours=0;
+	let minutes=0;
+	let seconds=0;
+	seconds = time%60;
+	if(time>=60){
+		minutes = (time-(time%60))/60;
+	}
+	if(minutes>=60){
+	   hours = (minutes-(minutes%60))/60;
+	}
+	return `${timeStringFormat(hours)}:${timeStringFormat(minutes%60)}:${timeStringFormat(seconds)}`;
+}
+
+function timeStringFormat(time){
+	if(time<10){
+		return "0"+time;
+	}
+	return time.toString();
+}
+
 function drawBackground(){
 	let gradient = context.createLinearGradient(0, window.innerHeight * 0.1, window.innerWidth, window.innerWidth * 0.9);
 	gradient.addColorStop(0, "rgba(9,8,23,1)");
@@ -1626,6 +1708,7 @@ function checkLoading(){
 		if(loaders.length>0){
 			if(!startedLoading){
 				document.getElementById("cosmos-loading-message").className="";
+				document.getElementById("cosmos-batches").className="flex-center-column hidden";
 			}
 			startedLoading=true;
 		}
@@ -1633,6 +1716,7 @@ function checkLoading(){
 			if(startedLoading){
 				getData();
 				document.getElementById("cosmos-loading-message").className="hidden";
+				document.getElementById("cosmos-batches").className="flex-center-column";
 				clearInterval(loadingCheckInterval);
 				startedLoading=false;
 			}
@@ -1651,7 +1735,7 @@ function makeElementRed(e){
 }
 
 function displayDashboard(){//Generates a custom dashboard that retrieves the total time spent, amount of processed tasks and average handle time of all dashboards for the WorkerId provided.
-	let hours = 12;
+	let hours = 13;
 	CloudWatchDashboards.displayCustomDashboard({
 		"widgets": [
 			{
@@ -1795,6 +1879,16 @@ function declareHTML(){
             <label>Cloudwatch WorkerId:</label>
             <input id="cosmos-sidebar-workerId" value="${userUUID}" placeholder="550e8400-e29b-41d4-a716-446655440000">
             <button id="cosmos-update-workerId" class="cosmos-sidebar-button">Overwrite WorkerId</button>
+            </div>
+        </details>
+    </div>
+	<div class="cosmos-sidebar-container">
+        <details class="cosmos-sidebar-details">
+            <summary class="cosmos-sidebar-details-summary">Preferences</summary>
+            <div class="cosmos-sidebar-details-settings">
+            <label>Time Format</label>
+            <button id="cosmos-decimal-time-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("timeFormat")==0?"1":"0"}">Decimal</button>
+			<button id="cosmos-standard-time-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("timeFormat")==1?"1":"0"}">HH:MM:SS</button>
             </div>
         </details>
     </div>
