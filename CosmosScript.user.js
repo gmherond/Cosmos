@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423
-// @version      1.2.3
+// @version      1.2.4
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -13,6 +13,10 @@
 // ==/UserScript==
 
 /*
+-----------------------------------------------------------------------------------------------------------------------
+Changelog 1.2.4 11/18/2025
+-Fixed a bug where data wouldn't load if there are no time points for a specific job.
+-----------------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------------
 Changelog 1.2.2 08/28/2025
 -Added option to display time either in a decimal format or a standard HH:MM:SS format.
@@ -1327,7 +1331,8 @@ function displayJobTimeframe(timePoints){
 			else startIndex = i;
 		}
 	}
-
+	if(startIndex==-1) startIndex = 0;
+	if(endIndex==-1) endIndex = 0;
 	return `Start Time: ${UTCTimeToLocal(timePointLabels[startIndex])} Last Time: ${UTCTimeToLocal(timePointLabels[endIndex])}`;
 }
 
