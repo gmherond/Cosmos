@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423
-// @version      1.2.4
+// @version      1.2.5
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -13,6 +13,10 @@
 // ==/UserScript==
 
 /*
+-----------------------------------------------------------------------------------------------------------------------
+Changelog 1.2.5 02/18/2026
+-Fixed a bug where the AHT was showing an incorrect value.
+-----------------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------------
 Changelog 1.2.4 11/18/2025
 -Fixed a bug where data wouldn't load if there are no time points for a specific job.
@@ -1286,6 +1290,7 @@ function formatBandwidth(time){
 }
 
 function formatAHT(time){
+	console.log(time);
 		if(getItem("timeFormat")==0){
 		return formatTime(time);
 	}
@@ -1761,7 +1766,8 @@ function displayDashboard(){//Generates a custom dashboard that retrieves the to
 					"title": "Average Handle Time",
 					"setPeriodToTimeRange": true,
 					"start": `-PT${hours}H`,
-					"end": "P0D"
+					"end": "P0D",
+					"singleValueFullPrecision": true
 				}
 			},
 			{
