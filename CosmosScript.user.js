@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423
-// @version      1.2.5
+// @version      1.2.6
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -13,6 +13,12 @@
 // ==/UserScript==
 
 /*
+-----------------------------------------------------------------------------------------------------------------------
+Changelog 1.2.6 07/01/2026
+-Fixed a bug where the AHT was no longer working.
+-AHT is now calculated as Total Time / (Processed Tasks + Returned Tasks). This way the resulting AHT matches each
+dashboard.
+-----------------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------------
 Changelog 1.2.5 02/18/2026
 -Fixed a bug where the AHT was showing an incorrect value.
@@ -997,7 +1003,7 @@ function checkCharts(){
 function setTimePointLabels(){
 	timePointLabels = [];
 	let labels = document.getElementsByTagName("thead")[2].children[0].children;
-	for(let i=6; i<labels.length;i++){
+	for(let i=3; i<labels.length;i++){
 		let splitLabel = labels[i].innerText.split("\n");
 		timePointLabels.push({date:splitLabel[0],time:splitLabel[1]});
 	}
@@ -1008,50 +1014,41 @@ function getData(){
 		document.title = "Cosmos";
 	}
 
-	if(Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("TT")).length>0){
-		let TTElements = Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("TT"));
+	if(Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("TT ")).length>0){
+		let TTElements = Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("TT "));
 
 		totalTimeList = TTElements.map((e)=>{
 			let labelingJob = e.innerText.replace("TT ","");
-			let value = e.parentElement.parentElement.children[4].children[0].children[0].title;
+			let value = e.parentElement.parentElement.children[2].innerText;
 			let timePoints = [];
-			for(let i=6;i<e.parentElement.parentElement.children.length;i++){
+			for(let i=3;i<e.parentElement.parentElement.children.length;i++){
 				timePoints.push(e.parentElement.parentElement.children[i].children[0].children[0].title);
 			}
 			return {labelingJob,value,timePoints};
 		});
 
 	}
-	if(Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("PT")).length>0){
-		let PTElements = Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("PT"));
+	if(Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("PT ")).length>0){
+		let PTElements = Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("PT "));
 
 		processedTaskList = PTElements.map((e)=>{
 			let labelingJob = e.innerText.replace("PT ","");
-			let value = e.parentElement.parentElement.children[4].children[0].children[0].title;
+			let value = e.parentElement.parentElement.children[2].innerText;
 			return {labelingJob,value};
 		});
 	}
-	if(Array.from(document.getElementsByClassName("cwdb-single-value-section")).filter((e)=>e.innerText.includes("AHT ")).length>0){
+	if(Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("RT ")).length>0){
 
-		let AHTElements = Array.from(document.getElementsByClassName("cwdb-single-value-section")).filter((e)=>e.innerText.includes("AHT "));
+		let AHTElements = Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("RT "));
+
 
 		averageHandleTimeList = AHTElements.map((e)=>{
-			let splitValues = e.innerText.split("\n");
-			if(splitValues.length==2){
-				let labelingJob = splitValues[1].replace("AHT ","");
-				let value = splitValues[0];
-				return {labelingJob,value};
-			}
-			else if(splitValues.length==3){
-				let labelingJob = splitValues[2].replace("AHT ","");
-				let value = splitValues[0];
-				if(splitValues[1]=="k"){
-					value = value*1000;
-				}
-				return {labelingJob,value};
-			}
-
+			let labelingJob = e.innerText.replace("RT ","");
+			let value = e.parentElement.parentElement.children[2].innerText;
+			return {labelingJob,value};
 		});
+
+		
 	}
 	setTimePointLabels();
 	displayData();
@@ -1073,10 +1070,13 @@ function orderLabelingJobs(){
 			if(averageHandleTimeList.find((e)=>e.labelingJob==ttElement.labelingJob)){
 				aht = averageHandleTimeList.find((e)=>e.labelingJob==ttElement.labelingJob).value;
 			}
-			let labelingJob = {jobName:ttElement.labelingJob,totalTime:tt,processedTasks:pt,averageHandleTime:aht,timePoints};
+
+			let totaltasks = Number(pt) + Number(aht);
+			let labelingJob = {jobName:ttElement.labelingJob,totalTime:tt,processedTasks:pt,averageHandleTime:(tt/totaltasks),timePoints};
 			labelingJobs.push(labelingJob);
 		}
 	}
+
 
 	let orderBy = document.getElementById("cosmos-order-by-select");
 
@@ -1219,11 +1219,7 @@ function displayLabelingJobs(groups){
                         	<span class="cosmos-job-average-handle-time">${formatAHT(labelingJob.averageHandleTime)}</span>
                     	</div>
                 	</div>
-                	<div class="cosmos-job-expanded">
-                    	<div class="cosmos-job-expanded-section">
-                        	${displayJobTimeframe(labelingJob.timePoints)}
-                    	</div>
-                	</div>
+
            		</div>
 				`;
 			});
@@ -1752,22 +1748,36 @@ function displayDashboard(){//Generates a custom dashboard that retrieves the to
 				"height": 7,
 				"width": 6,
 				"y": 0,
-				"x": 3,
+				"x": 9,
 				"type": "metric",
 				"properties": {
 					"metrics": [
-						[ { "expression": `SEARCH('{AWS/SageMaker/Workteam,CognitoUserPool,LabelingJob,WorkerId} CognitoUserPool="us-east-1_72S9GTaeK" WorkerId="${userUUID}" MetricName="TimeSpent"', 'Average', 300)`, "label": "AHT", "id": "e1", "period": 3600, "region": "us-east-1" } ]
+						[ { "expression": `SEARCH('{AWS/SageMaker/Workteam,CognitoUserPool,LabelingJob,WorkerId} CognitoUserPool="us-east-1_72S9GTaeK" WorkerId="${userUUID}" MetricName="TasksReturned"', 'Sum', 300)`, "id": "e1", "period": 300, "region": "us-east-1", "label": "RT" } ]
 					],
-					"view": "singleValue",
+					"sparkline": false,
+					"view": "table",
 					"region": "us-east-1",
-					"liveData": true,
 					"stat": "Sum",
-					"period": 3600,
-					"title": "Average Handle Time",
-					"setPeriodToTimeRange": true,
+					"period": 300,
+					"liveData": true,
+					"table": {
+						"summaryColumns": [
+							"SUM"
+						],
+						"showTimeSeriesData": false
+					},
+					"singleValueFullPrecision": true,
+					"title": "Submitted Tasks",
+					"yAxis": {
+						"left": {
+							"label": "Count",
+							"showUnits": false
+						}
+					},
 					"start": `-PT${hours}H`,
 					"end": "P0D",
-					"singleValueFullPrecision": true
+					"stacked": true,
+					"setPeriodToTimeRange": true
 				}
 			},
 			{
@@ -1778,17 +1788,32 @@ function displayDashboard(){//Generates a custom dashboard that retrieves the to
 				"type": "metric",
 				"properties": {
 					"metrics": [
-						[ { "expression": `SEARCH('{AWS/SageMaker/Workteam,CognitoUserPool,LabelingJob,WorkerId} CognitoUserPool="us-east-1_72S9GTaeK" WorkerId="${userUUID}" MetricName="TasksSubmitted"', 'Sum', 300)`, "id": "e1", "period": 3600, "region": "us-east-1", "label": "PT" } ]
+						[ { "expression": `SEARCH('{AWS/SageMaker/Workteam,CognitoUserPool,LabelingJob,WorkerId} CognitoUserPool="us-east-1_72S9GTaeK" WorkerId="${userUUID}" MetricName="TasksSubmitted"', 'Sum', 300)`, "id": "e1", "period": 300, "region": "us-east-1", "label": "PT" } ]
 					],
+					"sparkline": false,
 					"view": "table",
 					"region": "us-east-1",
-					"liveData": true,
 					"stat": "Sum",
+					"period": 300,
+					"liveData": true,
+					"table": {
+						"summaryColumns": [
+							"SUM"
+						],
+						"showTimeSeriesData": false
+					},
+					"singleValueFullPrecision": true,
 					"title": "Submitted Tasks",
-					"period": 3600,
-					"setPeriodToTimeRange": true,
+					"yAxis": {
+						"left": {
+							"label": "Count",
+							"showUnits": false
+						}
+					},
 					"start": `-PT${hours}H`,
-					"end": "P0D"
+					"end": "P0D",
+					"stacked": true,
+					"setPeriodToTimeRange": true
 				}
 			},
 			{
@@ -1801,16 +1826,30 @@ function displayDashboard(){//Generates a custom dashboard that retrieves the to
 					"metrics": [
 						[ { "expression": `SEARCH('{AWS/SageMaker/Workteam,CognitoUserPool,LabelingJob,WorkerId} CognitoUserPool="us-east-1_72S9GTaeK" WorkerId="${userUUID}" MetricName="TimeSpent"', 'Sum', 300)`, "label": "TT", "id": "e2", "period": 1800, "region": "us-east-1" } ]
 					],
+					"sparkline": false,
 					"view": "table",
-					"stacked": false,
 					"region": "us-east-1",
-					"liveData": true,
 					"stat": "Sum",
-					"period": 300,
+					"period": 3600,
+					"liveData": true,
+					"table": {
+						"summaryColumns": [
+							"SUM"
+						],
+						"showTimeSeriesData": true
+					},
+					"singleValueFullPrecision": true,
 					"title": "Total Time",
-					"setPeriodToTimeRange": true,
+					"yAxis": {
+						"left": {
+							"label": "Count",
+							"showUnits": false
+						}
+					},
 					"start": `-PT${hours}H`,
-					"end": "P0D"
+					"end": "P0D",
+					"stacked": true,
+					"setPeriodToTimeRange": true
 				}
 			}
 		]
