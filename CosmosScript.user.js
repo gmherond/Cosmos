@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423
-// @version      1.2.6
+// @version      1.3.0
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -12,7 +12,13 @@
 // @sandbox      MAIN_WORLD
 // ==/UserScript==
 
+
 /*
+-----------------------------------------------------------------------------------------------------------------------
+Changelog 1.3.0 07/01/2026
+-Added a toggle under preferences to calculate AHT as Total Time / Processed Tasks. This toggle button is called
+"Submitted Tasks Only".
+-----------------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------------
 Changelog 1.2.6 07/01/2026
 -Fixed a bug where the AHT was no longer working.
@@ -278,6 +284,7 @@ body{
     flex-direction: column;
     align-items: center;
     gap: 0.5rem;
+	margin:1rem 0rem;
 }
 
 #cosmos-sidebar input, #cosmos-sidebar select {
@@ -817,6 +824,10 @@ function cosmosInit(){
 		setItem("timeFormat",0);
 	}
 
+	if(getItem("ahtPreference")==null){
+		setItem("ahtPreference",0);
+	}
+
 	let login;
 	if(!getItem("login")){
 
@@ -950,6 +961,20 @@ function initFunction(){
 			displayData();
 		});
 
+		document.getElementById("cosmos-returned-tasks-button").addEventListener("click",()=>{
+			setItem("ahtPreference",0);
+			document.getElementById("cosmos-returned-tasks-button").setAttribute("selected",1);
+			document.getElementById("cosmos-submitted-tasks-button").setAttribute("selected",0);
+			displayData();
+		});
+
+		document.getElementById("cosmos-submitted-tasks-button").addEventListener("click",()=>{
+			setItem("ahtPreference",1);
+			document.getElementById("cosmos-returned-tasks-button").setAttribute("selected",0);
+			document.getElementById("cosmos-submitted-tasks-button").setAttribute("selected",1);
+			displayData();
+		});
+
 		document.getElementById("cosmos-view-source").addEventListener("click",()=>{
 			let sourceContainer = document.getElementById("cosmos-source-code-container");
 			if(sourceContainer.className=="flex-center-column"){
@@ -1038,17 +1063,13 @@ function getData(){
 		});
 	}
 	if(Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("RT ")).length>0){
-
 		let AHTElements = Array.from(document.getElementsByTagName("div")).filter((e)=>e.innerText.startsWith("RT "));
-
 
 		averageHandleTimeList = AHTElements.map((e)=>{
 			let labelingJob = e.innerText.replace("RT ","");
 			let value = e.parentElement.parentElement.children[2].innerText;
 			return {labelingJob,value};
 		});
-
-		
 	}
 	setTimePointLabels();
 	displayData();
@@ -1070,8 +1091,13 @@ function orderLabelingJobs(){
 			if(averageHandleTimeList.find((e)=>e.labelingJob==ttElement.labelingJob)){
 				aht = averageHandleTimeList.find((e)=>e.labelingJob==ttElement.labelingJob).value;
 			}
-
-			let totaltasks = Number(pt) + Number(aht);
+			let totaltasks;
+			if(getItem("ahtPreference")==0){
+				totaltasks = Number(pt) + Number(aht);
+			}
+			else if(getItem("ahtPreference")==1){
+				totaltasks = Number(pt);
+			}
 			let labelingJob = {jobName:ttElement.labelingJob,totalTime:tt,processedTasks:pt,averageHandleTime:(tt/totaltasks),timePoints};
 			labelingJobs.push(labelingJob);
 		}
@@ -1939,6 +1965,11 @@ function declareHTML(){
             <label>Time Format</label>
             <button id="cosmos-decimal-time-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("timeFormat")==0?"1":"0"}">Decimal</button>
 			<button id="cosmos-standard-time-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("timeFormat")==1?"1":"0"}">HH:MM:SS</button>
+            </div>
+			<div class="cosmos-sidebar-details-settings">
+            <label>AHT Preference</label>
+            <button id="cosmos-returned-tasks-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("ahtPreference")==0?"1":"0"}">Count Released Tasks</button>
+			<button id="cosmos-submitted-tasks-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("ahtPreference")==1?"1":"0"}">Submitted Tasks Only</button>
             </div>
         </details>
     </div>
