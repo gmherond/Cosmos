@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cosmos
 // @namespace    https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423
-// @version      1.3.0
+// @version      1.3.1
 // @description  Custom tool that displays the dashboard info of all the Sagemaker jobs you've worked on throughout the day.
 // @author       elgustav@
 // @match        https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423*
@@ -14,6 +14,12 @@
 
 
 /*
+-----------------------------------------------------------------------------------------------------------------------
+Changelog 1.3.1 07/02/2026
+-Added a hyperlink on each batch title that opens a new tab with the respective dashboard for that batch.
+-Moved Order by and Group by under a new "Sort & Filter" tab.
+-Changed the style of some elements for consistency.
+-----------------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------------
 Changelog 1.3.0 07/01/2026
 -Added a toggle under preferences to calculate AHT as Total Time / Processed Tasks. This toggle button is called
@@ -229,7 +235,6 @@ body{
     justify-content:left;
     align-items:center;
     flex-direction:column;
-    gap:1rem;
     z-index:2;
 	overflow-y:scroll;
 }
@@ -239,10 +244,10 @@ body{
     justify-content:center;
     align-items:center;
     gap:1rem;
-    border-bottom:1px solid white;
     width:80%;
     padding:1rem;
 	margin:0.5rem;
+	padding-right: 0.25rem;
 }
 
 .cosmos-sidebar-button{
@@ -268,14 +273,26 @@ body{
 }
 
 .cosmos-sidebar-details-summary{
-    user-select: none;
-    margin-bottom: 0.5rem;
+	user-select: none;
+    margin-bottom: 1rem;
     cursor: pointer;
     font-weight: 600;
     font-size: 1.5rem;
-    border-radius: 10rem;
     padding: 0.5rem;
     text-align: center;
+    background-color: #00000087;
+    width: 97%;
+    height: 5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ffffffaa;
+    border-right: none;
+    border-left: none;
+}
+
+.cosmos-sidebar-details-summary:hover{
+	background-color: #10042f87;
 }
 
 .cosmos-sidebar-details-settings {
@@ -703,6 +720,26 @@ input.cosmos-category-input-title {
 .cosmos-time-format[selected="0"]{
 	background-color:gray;
 }
+
+.cosmos-a{
+	color:#5383fc;
+}
+
+.cosmos-a:hover{
+	color:#8786ff;
+}
+
+.cosmos-label {
+    text-align: center !important;
+    align-self: center;
+    border-bottom: 2px dashed #ffffffab;
+    margin-bottom: 0.5rem;
+    width: 100%;
+    padding: 0.5rem;
+	display:flex;
+	justify-content:center;
+	align-items:center;
+}
 `;
 
 let favicon = `
@@ -1027,10 +1064,12 @@ function checkCharts(){
 
 function setTimePointLabels(){
 	timePointLabels = [];
-	let labels = document.getElementsByTagName("thead")[2].children[0].children;
-	for(let i=3; i<labels.length;i++){
-		let splitLabel = labels[i].innerText.split("\n");
-		timePointLabels.push({date:splitLabel[0],time:splitLabel[1]});
+	if(document.getElementsByTagName("thead")[2]){
+		let labels = document.getElementsByTagName("thead")[2].children[0].children;
+		for(let i=3; i<labels.length;i++){
+			let splitLabel = labels[i].innerText.split("\n");
+			timePointLabels.push({date:splitLabel[0],time:splitLabel[1]});
+		}
 	}
 }
 
@@ -1225,12 +1264,14 @@ function displayLabelingJobs(groups){
 	groups.map((group)=>{
 		if((group.display==true)&&(group.labelingJobs.length>0)){
 			let batches = "";
+
 			group.labelingJobs.map((labelingJob)=>{
+
 				batches+=`
 				<div class="cosmos-job">
 					<img class="cosmos-job-icon" src="https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/assets/Star%20Icon.svg"></img>
 
-                	<h3 class="cosmos-job-title">${labelingJob.jobName.split("/")[1]}</h3>
+                	<h3 class="cosmos-job-title"><a class="cosmos-a" target="_blank" href="https://cw-dashboards.aka.amazon.com/cloudwatch/dashboardInternal?accountId=753462827423&name=Productivity_UCI#dashboards/dashboard/CETMLDA-${labelingJob.jobName.split("/")[1]}">${labelingJob.jobName.split("/")[1]}</a></h3>
 					<div class="cosmos-job-values">
                     	<div class="cosmos-job-value">
                         	<label class="cosmos-job-label">Bandwidth</label>
@@ -1312,8 +1353,7 @@ function formatBandwidth(time){
 }
 
 function formatAHT(time){
-	console.log(time);
-		if(getItem("timeFormat")==0){
+	if(getItem("timeFormat")==0){
 		return formatTime(time);
 	}
 	else if(getItem("timeFormat")==1){
@@ -1944,15 +1984,18 @@ function declareHTML(){
 </div>
 
 <div id="cosmos-sidebar">
-    <h3 id="cosmos-sidebar-title">Settings <img id="cosmos-settings-icon" src="https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/assets/Settings%20Icon.svg"></img> </h3>
+    <h3 id="cosmos-sidebar-title">
+		<span>Settings</span>
+		<img id="cosmos-settings-icon" src="https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/assets/Settings%20Icon.svg"></img>
+	</h3>
     <div class="cosmos-sidebar-container">
         <details class="cosmos-sidebar-details">
             <summary class="cosmos-sidebar-details-summary">User Information</summary>
             <div class="cosmos-sidebar-details-settings">
-            <label>Login Username:</label>
+            <label class="cosmos-label" for="cosmos-sidebar-login">Login Username</label>
             <input id="cosmos-sidebar-login" value="${getItem("login")}" placeholder="johnsm">
             <button id="cosmos-update-login" class="cosmos-sidebar-button">Update Login</button>
-            <label>Cloudwatch WorkerId:</label>
+            <label class="cosmos-label" for="cosmos-sidebar-workerId">Cloudwatch WorkerId</label>
             <input id="cosmos-sidebar-workerId" value="${userUUID}" placeholder="550e8400-e29b-41d4-a716-446655440000">
             <button id="cosmos-update-workerId" class="cosmos-sidebar-button">Overwrite WorkerId</button>
             </div>
@@ -1962,20 +2005,22 @@ function declareHTML(){
         <details class="cosmos-sidebar-details">
             <summary class="cosmos-sidebar-details-summary">Preferences</summary>
             <div class="cosmos-sidebar-details-settings">
-            <label>Time Format</label>
+            <label class="cosmos-label">Time Format</label>
             <button id="cosmos-decimal-time-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("timeFormat")==0?"1":"0"}">Decimal</button>
 			<button id="cosmos-standard-time-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("timeFormat")==1?"1":"0"}">HH:MM:SS</button>
             </div>
 			<div class="cosmos-sidebar-details-settings">
-            <label>AHT Preference</label>
+            <label class="cosmos-label">AHT Preference</label>
             <button id="cosmos-returned-tasks-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("ahtPreference")==0?"1":"0"}">Count Released Tasks</button>
 			<button id="cosmos-submitted-tasks-button" class="cosmos-time-format cosmos-sidebar-button" selected="${getItem("ahtPreference")==1?"1":"0"}">Submitted Tasks Only</button>
             </div>
         </details>
     </div>
 	<div class="cosmos-sidebar-container">
-		<label>Order By</label>
-		<div class="flex-center">
+	    <details class="cosmos-sidebar-details">
+			<summary class="cosmos-sidebar-details-summary">Sort & Filter</summary>
+			<label class="cosmos-label">Order By</label>
+			<div class="flex-center">
 			<select id="cosmos-order-by-select">
 				<option ${getItem("orderBy")=="default"?"selected":""} value="default">Default</option>
 				<option ${getItem("orderBy")=="recent"?"selected":""} value="recent">Most recent</option>
@@ -1986,10 +2031,8 @@ function declareHTML(){
 			<button id="cosmos-sort-button" ${getItem("isDescending")==true ? "descending" : "ascending"} class="flex-center">
 				<img id="cosmos-sort-icon" src="https://raw.githubusercontent.com/gmherond/Cosmos/refs/heads/main/assets/Sort%20Icon.svg"></img>
 			</button>
-		</div>
-	</div>
-		<div class="cosmos-sidebar-container">
-		<label>Group By</label>
+			</div>
+			<label class="cosmos-label">Group By</label>
 		<div class="flex-center-column" style="width:100%">
 			<button class="cosmos-sidebar-button" id="cosmos-view-source">View Source</button>
 			<div id="cosmos-source-code-container" class="flex-center-column hidden">
@@ -1997,11 +2040,12 @@ function declareHTML(){
 				<button class="cosmos-sidebar-button" id="cosmos-update-source-button">Update Source</button>
 			</div>
 			<button class="cosmos-sidebar-button" id="cosmos-add-category-button">Add Category</button>
-			<label class="cosmos-dotted-bottom-border">Categories</label>
+			<label class="cosmos-label">Categories</label>
 			<div id="cosmos-categories" class="flex-center-column">
 
 			</div>
 		</div>
+		</details>
 	</div>
 </div>
 `;
